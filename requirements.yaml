@@ -1,4 +1,4 @@
-name: urban_env2
+name: urban_env
 channels:
   - defaults
 dependencies:
