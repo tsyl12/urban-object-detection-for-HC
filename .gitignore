@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.idea
 nosetests.xml
 coverage.xml
 *.cover
@@ -108,4 +109,5 @@ data/garb.weights
 data/images
 data/labels
 weights
+output
 detection
