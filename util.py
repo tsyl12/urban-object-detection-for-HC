@@ -80,7 +80,15 @@ def compute_ious(target_box, comp_boxes):
 
 def load_images(impath):
     if osp.isdir(impath):
-        imlist = [osp.join(impath, img) for img in os.listdir(impath)]
+        if all([osp.isfile(osp.join(impath, f)) for f in os.listdir(impath)]):
+            imlist = [osp.join(impath, img) for img in os.listdir(impath)]
+        elif all([osp.isdir(osp.join(impath, f)) for f in os.listdir(impath)]):
+            imlist = []
+            for dir_name in os.listdir(impath):
+                imlist += [osp.join(impath, dir_name, img) for img in os.listdir(osp.join(impath, dir_name))]
+        else:
+            print('%s is not a valid path (a mix of files and directories)' % impath)
+            sys.exit(1)
     elif osp.isfile(impath):
         imlist = [impath]
     else:

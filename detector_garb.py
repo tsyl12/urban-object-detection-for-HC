@@ -13,6 +13,7 @@ import os
 import sys
 from datetime import datetime
 from tqdm import tqdm
+from utils.analysis import analyze_classification_results
 
 def load_classes(namesfile):
     fp = open(namesfile, "r")
@@ -29,6 +30,7 @@ def parse_args():
     parser.add_argument('-w', '--webcam', action='store_true',  default=False, help='flag for detecting from webcam. Specify webcam ID in the input. usually 0 for a single webcam connected')
     parser.add_argument('--cuda', action='store_true', default=False, help='flag for running on GPU')
     parser.add_argument('--no-show', action='store_true', default=False, help='do not show the detected video in real time')
+    parser.add_argument('--weights_path', required=True, type=str, help='the path to the weights file')
 
     args = parser.parse_args()
 
@@ -77,6 +79,17 @@ def draw_bbox(imgs, bbox, colors, classes,read_frames,output_path):
         cv2.rectangle(img, p3, p4, color, -1)
 
         cv2.putText(img, label, p1, cv2.FONT_HERSHEY_SIMPLEX, 1, [225, 255, 255], 1)
+
+
+def is_graffiti(detections: list, classes: list) -> bool:
+    is_graf = False
+    for bbox in detections:
+        label = classes[int(bbox[-1])]
+        if label == 'graffiti':
+            is_graf = True
+            break
+
+    return is_graf
 
 
 def detect_video(model, args):
@@ -153,9 +166,13 @@ def detect_image(model, args):
     print('Loading input image(s)...')
     input_size = [int(model.net_info['height']), int(model.net_info['width'])]
     batch_size = int(model.net_info['batch'])
+    assert batch_size == 1, 'This implementation (for inference only assumes batch size = 1 for simplicity.'
 
     imlist, imgs = load_images(args.input)
     print('Input image(s) loaded')
+
+    # initialize classification results
+    results_list = []
 
     img_batches = create_batches(imgs, batch_size)
 
@@ -177,13 +194,21 @@ def detect_image(model, args):
             img_tensors = img_tensors.cuda()
         detections = model(img_tensors, args.cuda).cpu()
         detections = process_result(detections, args.obj_thresh, args.nms_thresh)
-        if len(detections) == 0:
-            continue
 
-        detections = transform_result(detections, img_batch, input_size)
+        if len(detections) > 0:
 
-        for detection in detections:
-            draw_bbox(img_batch, detection, colors, classes,0,args.outdir)
+            detections = transform_result(detections, img_batch, input_size)
+
+            for detection in detections:
+                draw_bbox(img_batch, detection, colors, classes,0,args.outdir)
+
+        img_path = imlist[batchi]
+        gt = osp.dirname(img_path).endswith('with_graffiti')
+        classification = is_graffiti(detections, classes)
+        results_list.append({'img_path': img_path, 'gt': gt, 'classification': classification})
+
+        if not gt:
+            assert osp.dirname(img_path).endswith('no_graffiti'), f'Unknown label for dir {osp.dirname(img_path)}'
 
         for i, img in enumerate(img_batch):
             save_path = osp.join(args.outdir, osp.basename(imlist[batchi*batch_size + i]))
@@ -192,6 +217,18 @@ def detect_image(model, args):
 
     end_time = datetime.now()
     print('Detection finished in %s' % (end_time - start_time))
+
+    metrics = analyze_classification_results(results_list, f_score_beta=1.0, display=False)
+    for k, v in metrics.items():
+        print(f'{k}: {v}')
+
+    results_file_path = osp.join(args.outdir, 'results.txt')
+
+    with open(results_file_path, 'w') as f:
+        for k, v in metrics.items():
+            _ = f.write(f'{k}: {v}\n')
+        for res in results_list:
+            _ = f.write(str(res)+'\n')
 
     return
 
@@ -204,8 +241,8 @@ def main():
         sys.exit(1)
 
     print('Loading network...')
-    model = Darknet("cfg/yolov3_garb_9_test.cfg")
-    model.load_weights('weights/yolov3_garb.backup')
+    model = Darknet("cfg/yolov3_garb_test.cfg")
+    model.load_weights(args.weights_path)
     if args.cuda:
         model.cuda()
 

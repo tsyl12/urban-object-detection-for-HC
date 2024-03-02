@@ -1,0 +1,20 @@
+name: urban_env2
+channels:
+  - defaults
+dependencies:
+  - pip=21.2.4
+  - python==3.7.13
+  - pip:
+    - cycler==0.10.0
+    - kiwisolver==1.1.0
+    - matplotlib==3.1.1
+    - numpy==1.17.2
+    - opencv-python==4.1.1.26
+    - Pillow
+    - pyparsing==2.4.2
+    - python-dateutil==2.8.0
+    - six==1.12.0
+    - torch==1.2.0
+    - tqdm==4.36.1
+    - imageio==2.31.2
+    - scikit-learn==1.0.2
